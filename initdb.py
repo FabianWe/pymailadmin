@@ -6,7 +6,7 @@ import MySQLdb
 
 if __name__ == '__main__':
     try:
-        db = mailadmin.open_db('127.0.1.1', 'root', 'DaV70xcLjjM4ARm9fmIxwgOjRClDXmzv')
+        db = mailadmin.open_from_settings()
     except MySQLdb.Error as e:
         print("Error while opening db: %s" % str(e), file=sys.stderr)
         sys.exit(1)
