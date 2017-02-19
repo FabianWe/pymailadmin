@@ -74,7 +74,17 @@ def init_db(db):
     )
     '''
     )
+    db.commit()
 
+def add_domain(db, name):
+    cur = db.cursor()
+    cmd = '''
+    INSERT INTO virtual_domains
+    (name)
+    VALUES (%s)
+    '''
+    cur.execute(cmd, (name,))
+    db.commit()
 
 def add_user(db, name, pw):
     cur = db.cursor()

@@ -16,3 +16,4 @@ if __name__ == '__main__':
     except MySQLdb.Error as e:
         print("Error while Initializing database: %s" % str(e), file=sys.stderr)
         sys.exit(1)
+    print('... Done')
