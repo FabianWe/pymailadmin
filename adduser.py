@@ -40,7 +40,19 @@ if __name__ == '__main__':
         pw = pw1
     elif args.genpw:
         pw = mailadmin.gen_pw()
+        print('Created random password:', pw)
     else:
         pw = args.password
     _hash = mailadmin.gen_hash(pw)
     assert len(_hash) == 120
+    mail = args.mail
+    try:
+        db = mailadmin.open_from_settings()
+    except MySQLdb.Error as e:
+        print('Error while connecting to database:', e)
+        sys.exit(1)
+    try:
+        mailadmin.add_user(db, mail, _hash)
+    except MySQLdb.Error as e:
+        print('Error while adding user:', e)
+    print("Done")

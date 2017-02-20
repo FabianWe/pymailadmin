@@ -17,6 +17,7 @@ if __name__ == '__main__':
         db = mailadmin.open_from_settings()
     except MySQLdb.Error as e:
         print('Error while connecting to database:', e)
+        sys.exit(1)
     try:
         mailadmin.add_domain(db, domain)
     except MySQLdb.Error as e:
