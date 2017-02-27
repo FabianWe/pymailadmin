@@ -76,4 +76,5 @@ if __name__ == '__main__':
         mailadmin.add_user(db, mail, _hash)
     except MySQLdb.Error as e:
         print('Error while adding user:', e)
+        sys.exit(1)
     print("Done")

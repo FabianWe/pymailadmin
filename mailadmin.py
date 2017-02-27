@@ -134,3 +134,28 @@ def add_user(db, mail, pw_hash):
     cur.execute(cmd, (domain_id, mail, pw_hash))
     cur.close()
     db.commit()
+
+def add_alias(db, source, dest):
+    cur = db.cursor()
+    split = source.split('@')
+    if len(split) != 2:
+        print('Email does not contain exactly one @. Error')
+        sys.exit(1)
+    domain = split[1]
+    get_domain = '''
+    SELECT id FROM virtual_domains WHERE name = %s
+    '''
+    cur.execute(get_domain, (domain,))
+    entries = list(cur)
+    if not entries:
+        print('Domain "%s" was not found. Error.' % domain)
+        sys.exit(1)
+    domain_id = entries[0][0]
+    cmd = '''
+    INSERT INTO virtual_aliases
+    (domain_id, source, destination)
+    VALUES (%s, %s, %s)
+    '''
+    cur.execute(cmd, (domain_id, source, dest))
+    cur.close()
+    db.commit()
