@@ -45,7 +45,7 @@ def parse_settings(path='.config'):
     db = mysql.get('db', 'mailserver')
     return {'host': host, 'port': port, 'db': db, 'user': user, 'password': password}
 
-def gen_pw(pw_len=6):
+def gen_pw(pw_len=12):
     return "".join(random.choice(pw_chars) for _ in range(pw_len))
 
 def open_db(host, user, passwd, port=3306, db='mailserver'):
