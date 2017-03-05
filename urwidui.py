@@ -23,6 +23,10 @@
 
 import urwid
 import datetime
+import mailadmin
+import urwidsql
+import MySQLdb
+import sys
 
 # from the urwid tutorial: http://urwid.org/tutorial/
 # seems to look nice
@@ -35,7 +39,8 @@ palette = [
     ('focus line', 'black', 'dark red'),
     ('focus options', 'black', 'light gray'),
     ('selected', 'white', 'dark blue'),
-    ('status', 'white', 'dark green')]
+    ('status', 'light blue', 'brown'),
+    ('errstatus', 'light red', 'brown')]
 focus_map = {
     'heading': 'focus heading',
     'options': 'focus options',
@@ -64,28 +69,6 @@ class SubMenu(urwid.WidgetWrap):
     def open_menu(self, button):
         top.open_box(self)
 
-def exit_program(key):
-    raise urwid.ExitMainLoop()
-
-class ExitChoice(urwid.WidgetWrap):
-    def __init__(self):
-        super(ExitChoice, self).__init__(
-            MenuButton('Exit', self.exit))
-
-    def exit(self, button):
-        exit_program(0)
-
-class DomainChoice(urwid.WidgetWrap):
-    def __init__(self):
-        super(DomainChoice, self).__init__(
-            MenuButton('Virtual Domains', self.open_menu))
-
-    def open_menu(self, button):
-        # TODO
-        box = DomainBox()
-        # exit_program(0)
-        top.open_box(box, 100)
-
 class SubEntryBox(urwid.WidgetWrap):
     def __init__(self, caption, help_text=''):
         # TODO what is this even for, well works
@@ -112,16 +95,48 @@ class SubEntryBox(urwid.WidgetWrap):
         if key == 'q':
             top.remove_active()
 
+def exit_program(key):
+    raise urwid.ExitMainLoop()
+
+class ExitChoice(urwid.WidgetWrap):
+    def __init__(self):
+        super(ExitChoice, self).__init__(
+            MenuButton('Exit', self.exit))
+
+    def exit(self, button):
+        exit_program(0)
+
+class DomainChoice(urwid.WidgetWrap):
+    def __init__(self):
+        super(DomainChoice, self).__init__(
+            MenuButton('Virtual Domains', self.open_menu))
+
+    def open_menu(self, button):
+        box = DomainBox()
+        top.open_box(box, 40)
+
 class DomainBox(SubEntryBox):
     def __init__(self):
         super(DomainBox, self).__init__('Virtual Domains',
             '\n(a) add, (d) delete entry')
 
     def get_content(self):
+        try:
+            entries = list(urwidsql.get_domains(db))
+        except MySQLdb.Error as e:
+            set_err_status('Access error: ' + str(e))
+            return []
+        entries.sort()
         res = []
-        for i in range(10):
-            res.append(MenuButton('a' if i % 2 == 0 else 'b', lambda button: None))
+        for entry in entries:
+            res.append(MenuButton(entry, lambda button: None))
         return res
+
+    def set_content(self):
+        content = self.get_content()
+        self.listbox.body.clear()
+        for e in content:
+            self.listbox.body.append(e)
 
     def handle_input(self, key):
         if key == 'a':
@@ -131,7 +146,8 @@ class DomainBox(SubEntryBox):
             if self.listbox.focus is not None:
                 elem = self.listbox.focus
                 if type(elem) == MenuButton:
-                    raise ValueError(self.listbox.focus.get_label())
+                    box = DeleteDomainBox(self, self.listbox.focus.label)
+                    top.open_box(box)
         else:
             super(DomainBox, self).handle_input(key)
 
@@ -141,18 +157,46 @@ class AddDomainBox(SubEntryBox):
         self.parent = parent
 
     def get_content(self):
+        self.edit_box = AddDomainEditBox()
         ok_button = urwid.Button('Add')
         urwid.connect_signal(ok_button, 'click', self.ok_action)
         cancel_button = urwid.Button('Cancel')
         urwid.connect_signal(cancel_button, 'click', lambda button: top.remove_active())
         return [urwid.AttrMap(urwid.Text('Domain'), 'heading'),
-                urwid.AttrMap(AddDomainEditBox(), 'selected'),
+                urwid.AttrMap(self.edit_box, 'selected'),
                 ok_button,
                 cancel_button]
 
     def ok_action(self, button):
-        # TODO sql stuff
-        self.parent.listbox.body.insert(-1, MenuButton('xxx', lambda x: 432))
+        domain = self.edit_box.get_text()[0]
+        try:
+            urwidsql.add_domain(db, domain)
+            set_info('Added domain "%s"' % domain)
+        except MySQLdb.Error as e:
+            set_err_status('Access error: ' + str(e))
+        self.parent.set_content()
+        top.remove_active()
+
+class DeleteDomainBox(SubEntryBox):
+    def __init__(self, parent, domain_name):
+        super(DeleteDomainBox, self).__init__('Delete domain?', '\n ' + domain_name)
+        self.parent = parent
+        self.domain_name = domain_name
+
+    def get_content(self):
+        remove_button = urwid.Button('Remove')
+        urwid.connect_signal(remove_button, 'click', self.remove)
+        cancel_button = urwid.Button('Cancel')
+        urwid.connect_signal(cancel_button, 'click', lambda button: top.remove_active())
+        return [remove_button, cancel_button]
+
+    def remove(self, button):
+        try:
+            urwidsql.remove_domain(db, self.domain_name)
+            set_info('Removed domain "%s"' % self.domain_name)
+        except (MySQLdb.Error, urwidsql.SQLExecuteException) as e:
+            set_err_status('Unable to remove domain: ' + str(e))
+        self.parent.set_content()
         top.remove_active()
 
 
@@ -167,9 +211,41 @@ class UsesrsChoice(urwid.WidgetWrap):
             MenuButton('Users', self.open_menu))
 
     def open_menu(self, button):
-        # TODO
-        exit_program(0)
+        box = UserBox()
+        top.open_box(box, 40)
 
+class UserBox(SubEntryBox):
+    def __init__(self):
+        super(UserBox, self).__init__('Users',
+            '\n(a) add, (d) delete entry, (p) change password')
+
+    def get_content(self):
+        try:
+            entries = list(urwidsql.get_users(db))
+        except MySQLdb.Error as e:
+            set_err_status('Access error: ' + str(e))
+            return []
+        entries.sort()
+        res = []
+        for entry in entries:
+            res.append(MenuButton(entry, lambda button: None))
+        return res
+
+    def set_content(self):
+        content = self.get_content()
+        self.listbox.body.clear()
+        for e in content:
+            self.listbox.body.append(e)
+
+    def handle_input(self, key):
+        if key == 'a':
+            pass
+        elif key == 'd':
+            pass
+        elif key == 'p':
+            pass
+        else:
+            super(UserBox, self).handle_input(key)
 
 class AliasesChoice(urwid.WidgetWrap):
     def __init__(self):
@@ -216,6 +292,14 @@ def set_status(text):
     now = datetime.datetime.now()
     status.set_text(now.strftime('%Y-%m-%d %H:%M') + ' ' + text)
 
+def set_info(text):
+    status_bar.set_attr_map({None: 'status'})
+    set_status(text)
+
+def set_err_status(text):
+    status_bar.set_attr_map({None: 'errstatus'})
+    set_status(text)
+
 def handle_input(key):
     f = open('test.txt','w')
     print(top.contents[0], file=f)
@@ -227,6 +311,12 @@ def handle_input(key):
 top = HorizontalBoxes()
 top.open_box(menu_top)
 status = urwid.Text('')
-set_status('Program started')
-base_elem = urwid.Pile([top, ('flow', urwid.AttrMap(status, 'status'))])
+status_bar = urwid.AttrMap(status, 'status')
+set_info('Program started')
+base_elem = urwid.Pile([top, ('flow', status_bar)])
+try:
+    db = mailadmin.open_from_settings()
+except MySQLdb.Error as e:
+    print('Unable to connect to database:', e)
+    sys.exit(1)
 urwid.MainLoop(urwid.Filler(base_elem,'top', 40), palette, unhandled_input=handle_input).run()
