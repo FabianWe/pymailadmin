@@ -101,9 +101,13 @@ class SubEntryBox(urwid.WidgetWrap):
 
     def set_content(self):
         content = self.get_content()
+        # get the dividers
+        fst, last = self.listbox.body[0], self.listbox.body[-1]
         self.listbox.body.clear()
+        self.listbox.body.append(fst)
         for e in content:
             self.listbox.body.append(e)
+        self.listbox.body.append(last)
 
 def exit_program(key):
     raise urwid.ExitMainLoop()
@@ -238,11 +242,6 @@ class UserBox(SubEntryBox):
             res.append(MenuButton(entry, lambda button: None))
         return res
 
-    def set_content(self):
-        content = self.get_content()
-        self.listbox.body.clear()
-        for e in content:
-            self.listbox.body.append(e)
 
     def handle_input(self, key):
         if key == 'a':
