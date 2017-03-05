@@ -69,6 +69,10 @@ class SubMenu(urwid.WidgetWrap):
     def open_menu(self, button):
         top.open_box(self)
 
+    def handle_input(self, key):
+        if key == 'q':
+            top.remove_active()
+
 class SubEntryBox(urwid.WidgetWrap):
     def __init__(self, caption, help_text=''):
         # TODO what is this even for, well works
@@ -377,7 +381,7 @@ class EditPasswordBox(AddUserBox):
 
 class DeleteUserBox(SubEntryBox):
     def __init__(self, parent, mail):
-        super(DeleteUserBox, self).__init__('Delete mail??', '\n ' + mail)
+        super(DeleteUserBox, self).__init__('Delete mail?', '\n ' + mail)
         self.parent = parent
         self.mail = mail
 
@@ -445,6 +449,8 @@ class HorizontalBoxes(urwid.Columns):
             focus_pos = self.focus_position
             del self.contents[focus_pos:]
             del self.callbacks[focus_pos:]
+        if not self.contents:
+            exit_program(0)
 
 def set_status(text):
     now = datetime.datetime.now()
