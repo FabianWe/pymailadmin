@@ -22,6 +22,7 @@
 # SOFTWARE.
 
 import urwid
+import datetime
 
 # from the urwid tutorial: http://urwid.org/tutorial/
 # seems to look nice
@@ -33,7 +34,8 @@ palette = [
     ('focus heading', 'white', 'dark red'),
     ('focus line', 'black', 'dark red'),
     ('focus options', 'black', 'light gray'),
-    ('selected', 'white', 'dark blue')]
+    ('selected', 'white', 'dark blue'),
+    ('status', 'white', 'dark green')]
 focus_map = {
     'heading': 'focus heading',
     'options': 'focus options',
@@ -117,13 +119,13 @@ class DomainBox(SubEntryBox):
 
     def get_content(self):
         res = []
-        for i in range(100):
+        for i in range(10):
             res.append(MenuButton('a' if i % 2 == 0 else 'b', lambda button: None))
         return res
 
     def handle_input(self, key):
         if key == 'a':
-            box = AddDomainBox()
+            box = AddDomainBox(self)
             top.open_box(box)
         elif key == 'd':
             if self.listbox.focus is not None:
@@ -134,18 +136,25 @@ class DomainBox(SubEntryBox):
             super(DomainBox, self).handle_input(key)
 
 class AddDomainBox(SubEntryBox):
-    def __init__(self):
+    def __init__(self, parent):
         super(AddDomainBox, self).__init__('Add new virtual domain', '')
+        self.parent = parent
 
     def get_content(self):
         ok_button = urwid.Button('Add')
-        urwid.connect_signal(ok_button, 'click', lambda x:42)
+        urwid.connect_signal(ok_button, 'click', self.ok_action)
         cancel_button = urwid.Button('Cancel')
         urwid.connect_signal(cancel_button, 'click', lambda button: top.remove_active())
         return [urwid.AttrMap(urwid.Text('Domain'), 'heading'),
                 urwid.AttrMap(AddDomainEditBox(), 'selected'),
                 ok_button,
                 cancel_button]
+
+    def ok_action(self, button):
+        # TODO sql stuff
+        self.parent.listbox.body.insert(-1, MenuButton('xxx', lambda x: 432))
+        top.remove_active()
+
 
 class AddDomainEditBox(urwid.Edit):
     def __init__(self):
@@ -203,6 +212,9 @@ class HorizontalBoxes(urwid.Columns):
             del self.contents[focus_pos:]
             del self.callbacks[focus_pos:]
 
+def set_status(text):
+    now = datetime.datetime.now()
+    status.set_text(now.strftime('%Y-%m-%d %H:%M') + ' ' + text)
 
 def handle_input(key):
     f = open('test.txt','w')
@@ -214,4 +226,7 @@ def handle_input(key):
 
 top = HorizontalBoxes()
 top.open_box(menu_top)
-urwid.MainLoop(urwid.Filler(top, 'top', 30), palette, unhandled_input=handle_input).run()
+status = urwid.Text('')
+set_status('Program started')
+base_elem = urwid.Pile([top, ('flow', urwid.AttrMap(status, 'status'))])
+urwid.MainLoop(urwid.Filler(base_elem,'top', 40), palette, unhandled_input=handle_input).run()
