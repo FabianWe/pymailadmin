@@ -146,7 +146,7 @@ class DomainBox(SubEntryBox):
             if self.listbox.focus is not None:
                 elem = self.listbox.focus
                 if type(elem) == MenuButton:
-                    box = DeleteDomainBox(self, self.listbox.focus.label)
+                    box = DeleteDomainBox(self, elem.label)
                     top.open_box(box)
         else:
             super(DomainBox, self).handle_input(key)
@@ -245,22 +245,30 @@ class UserBox(SubEntryBox):
             box = AddUserBox(self)
             top.open_box(box)
         elif key == 'd':
-            pass
+            if self.listbox.focus is not None:
+                elem = self.listbox.focus
+                if type(elem) == MenuButton:
+                    box = DeleteUserBox(self, elem.label)
+                    top.open_box(box)
         elif key == 'p':
-            pass
+            if self.listbox.focus is not None:
+                elem = self.listbox.focus
+                if type(elem) == MenuButton:
+                    box = EditPasswordBox(self, elem.label)
+                    top.open_box(box)
         else:
             super(UserBox, self).handle_input(key)
 
 class AddUserBox(SubEntryBox):
-    def __init__(self, parent):
-        super(AddUserBox, self).__init__('Add new user', '')
+    def __init__(self, parent, label='Add new user', help_text=''):
+        super(AddUserBox, self).__init__(label, help_text)
         self.parent = parent
+        self.pw_mask = '*'
 
     def get_content(self):
         self.edit_box = AddUserEditBox()
         self.pw_box = PasswordBox()
         self.pw_check = PasswordBox()
-        self.pw_mask = '*'
         pw_vis_button = urwid.Button('Show / Hide password')
         urwid.connect_signal(pw_vis_button, 'click', self.show_hide)
         random_pw_button = urwid.Button('Random password')
@@ -295,7 +303,6 @@ class AddUserBox(SubEntryBox):
             return
         _hash = mailadmin.gen_hash(password)
         assert len(_hash) == 120
-        set_info(_hash)
         try:
             urwidsql.add_user(db, mail, _hash)
             set_info('Added mailing user "%s"' % mail)
@@ -320,7 +327,75 @@ class AddUserBox(SubEntryBox):
     def random_pw(self, button):
         pw = mailadmin.gen_pw()
         self.pw_box.set_edit_text(pw)
+        self.pw_check.set_edit_text(pw)
         self.show_pw()
+
+# TODO maybe not so nice to inherit from this class but it provides many things
+# we need...
+class EditPasswordBox(AddUserBox):
+    def __init__(self, parent, mail):
+        super(EditPasswordBox, self).__init__(parent, '\nChange password', '\n ' + mail)
+        self.mail = mail
+
+    def get_content(self):
+        self.pw_box = PasswordBox()
+        self.pw_check = PasswordBox()
+        pw_vis_button = urwid.Button('Show / Hide password')
+        urwid.connect_signal(pw_vis_button, 'click', self.show_hide)
+        random_pw_button = urwid.Button('Random password')
+        urwid.connect_signal(random_pw_button, 'click', self.random_pw)
+        ok_button = urwid.Button('Edit')
+        urwid.connect_signal(ok_button, 'click', self.ok_action)
+        cancel_button = urwid.Button('Cancel')
+        urwid.connect_signal(cancel_button, 'click', lambda button: top.remove_active())
+        return [urwid.AttrMap(urwid.Text('Password'), 'heading'),
+                urwid.AttrMap(self.pw_box, 'selected'),
+                urwid.AttrMap(urwid.Text('Repeat password'), 'heading'),
+                urwid.AttrMap(self.pw_check, 'selected'),
+                random_pw_button,
+                pw_vis_button,
+                ok_button,
+                cancel_button]
+
+    def ok_action(self, button):
+        password = self.pw_box.get_edit_text()
+        if not password:
+            set_err_status('Password is empty, error!')
+            return
+        check_pw = self.pw_check.get_edit_text()
+        if password != check_pw:
+            set_err_status('The passwords do not match.')
+            return
+        _hash = mailadmin.gen_hash(password)
+        assert len(_hash) == 120
+        try:
+            urwidsql.change_pw(db, self.mail, _hash)
+            set_info('Updated password for "%s"' % self.mail)
+            top.remove_active()
+        except (MySQLdb.Error, urwidsql.SQLExecuteException) as e:
+            set_err_status('Error while changing password: ' + str(e))
+
+class DeleteUserBox(SubEntryBox):
+    def __init__(self, parent, mail):
+        super(DeleteUserBox, self).__init__('Delete mail??', '\n ' + mail)
+        self.parent = parent
+        self.mail = mail
+
+    def get_content(self):
+        remove_button = urwid.Button('Remove')
+        urwid.connect_signal(remove_button, 'click', self.remove)
+        cancel_button = urwid.Button('Cancel')
+        urwid.connect_signal(cancel_button, 'click', lambda button: top.remove_active())
+        return [remove_button, cancel_button]
+
+    def remove(self, button):
+        try:
+            urwidsql.remove_user(db, self.mail)
+            set_info('Removed user "%s"' % self.mail)
+        except (MySQLdb.Error, urwidsql.SQLExecuteException) as e:
+            set_err_status('Unable to remove user: ' + str(e))
+        self.parent.set_content()
+        top.remove_active()
 
 class AddUserEditBox(urwid.Edit):
     def __init__(self):

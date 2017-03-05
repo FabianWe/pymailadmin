@@ -71,3 +71,21 @@ def add_user(db, mail, pw_hash):
     cur.execute(insert_cmd, (domain_id, mail, pw_hash))
     cur.close()
     db.commit()
+
+def change_pw(db, mail, _hash):
+    update_cmd = 'UPDATE virtual_users SET password=%s WHERE email=%s'
+    cur = db.cursor()
+    cur.execute(update_cmd, (_hash, mail))
+    cur.close()
+    db.commit()
+    if cur.rowcount != 1:
+        raise SQLExecuteException('Update effected no entry in the database')
+
+def remove_user(db, mail):
+    sql_cmd = '''DELETE FROM virtual_users WHERE email=%s'''
+    cur = db.cursor()
+    cur.execute(sql_cmd, (mail,))
+    cur.close()
+    db.commit()
+    if cur.rowcount != 1:
+        raise SQLExecuteException('Nothing was deleted from table.')
