@@ -99,6 +99,12 @@ class SubEntryBox(urwid.WidgetWrap):
         if key == 'q':
             top.remove_active()
 
+    def set_content(self):
+        content = self.get_content()
+        self.listbox.body.clear()
+        for e in content:
+            self.listbox.body.append(e)
+
 def exit_program(key):
     raise urwid.ExitMainLoop()
 
@@ -135,12 +141,6 @@ class DomainBox(SubEntryBox):
         for entry in entries:
             res.append(MenuButton(entry, lambda button: None))
         return res
-
-    def set_content(self):
-        content = self.get_content()
-        self.listbox.body.clear()
-        for e in content:
-            self.listbox.body.append(e)
 
     def handle_input(self, key):
         if key == 'a':
@@ -445,11 +445,6 @@ class AliasesBox(SubEntryBox):
         return res
         return []
 
-    def set_content(self):
-        content = self.get_content()
-        self.listbox.body.clear()
-        for e in content:
-            self.listbox.body.append(e)
 
     def handle_input(self, key):
         if key == 'a':
