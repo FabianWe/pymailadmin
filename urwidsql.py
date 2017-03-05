@@ -60,7 +60,7 @@ def add_user(db, mail, pw_hash):
         raise SQLExecuteException('Email does not contain exactly one @. Error.')
     domain = split[1]
     cur = db.cursor()
-    get_domain = 'SELECT id FROM virtual_domains WHERE name = %s'
+    get_domain = 'SELECT id FROM virtual_domains WHERE name=%s'
     cur.execute(get_domain, (domain,))
     entries = list(cur)
     if not entries:
@@ -82,10 +82,47 @@ def change_pw(db, mail, _hash):
         raise SQLExecuteException('Update effected no entry in the database')
 
 def remove_user(db, mail):
-    sql_cmd = '''DELETE FROM virtual_users WHERE email=%s'''
+    sql_cmd = 'DELETE FROM virtual_users WHERE email=%s'
     cur = db.cursor()
     cur.execute(sql_cmd, (mail,))
     cur.close()
     db.commit()
     if cur.rowcount != 1:
         raise SQLExecuteException('Nothing was deleted from table.')
+
+def get_aliases(db):
+    sql_cmd = 'SELECT source, destination FROM virtual_aliases'
+    cur = db.cursor()
+    cur.execute(sql_cmd)
+    for entry in cur.fetchall():
+        yield entry
+    cur.close()
+
+def remove_alias(db, source, dest):
+    sql_cmd = 'DELETE FROM virtual_aliases WHERE (source=%s AND destination=%s)'
+    cur = db.cursor()
+    cur.execute(sql_cmd, (source, dest))
+    cur.close()
+    db.commit()
+    if cur.rowcount != 1:
+        raise SQLExecuteException('Nothing was deleted from table.')
+
+def add_alias(db, source, dest):
+    split = source.split('@')
+    if len(split) != 2:
+        raise SQLExecuteException('Email does not contain exactly one @. Error.')
+    domain = split[1]
+    cur = db.cursor()
+    get_domain = 'SELECT id FROM virtual_domains WHERE name=%s'
+    cur.execute(get_domain, (domain,))
+    entries = list(cur)
+    if not entries:
+        raise SQLExecuteException('Domain "%s" was not found. Error.' % domain)
+    domain_id = entries[0][0]
+    # insert
+    add_cmd = '''INSERT INTO virtual_aliases
+                 (domain_id, source, destination)
+                 VALUES(%s, %s, %s)'''
+    cur.execute(add_cmd, (domain_id, source, dest))
+    cur.close()
+    db.commit()

@@ -149,7 +149,7 @@ class DomainBox(SubEntryBox):
         elif key == 'd':
             if self.listbox.focus is not None:
                 elem = self.listbox.focus
-                if type(elem) == MenuButton:
+                if isinstance(elem, MenuButton):
                     box = DeleteDomainBox(self, elem.label)
                     top.open_box(box)
         else:
@@ -251,13 +251,13 @@ class UserBox(SubEntryBox):
         elif key == 'd':
             if self.listbox.focus is not None:
                 elem = self.listbox.focus
-                if type(elem) == MenuButton:
+                if isinstance(elem, MenuButton):
                     box = DeleteUserBox(self, elem.label)
                     top.open_box(box)
         elif key == 'p':
             if self.listbox.focus is not None:
                 elem = self.listbox.focus
-                if type(elem) == MenuButton:
+                if isinstance(elem, MenuButton):
                     box = EditPasswordBox(self, elem.label)
                     top.open_box(box)
         else:
@@ -415,8 +415,118 @@ class AliasesChoice(urwid.WidgetWrap):
             MenuButton('Aliases', self.open_menu))
 
     def open_menu(self, button):
-        # TODO
-        exit_program(0)
+        box = AliasesBox()
+        top.open_box(box, width=75)
+
+def alias_str(source, dest):
+    return '%s    ------>    %s' % (source, dest)
+
+class AliasButton(MenuButton):
+    def __init__(self, callback, source, dest):
+        super(AliasButton, self).__init__(alias_str(source, dest), callback)
+        self.source = source
+        self.dest = dest
+
+class AliasesBox(SubEntryBox):
+    def __init__(self):
+        super(AliasesBox, self).__init__('Aliases',
+            '\n(a) add, (d) delete entry')
+
+    def get_content(self):
+        try:
+            entries = list(urwidsql.get_aliases(db))
+        except MySQLdb.Error as e:
+            set_err_status('Access error: ' + str(e))
+            return []
+        entries.sort()
+        res = []
+        for source, dest in entries:
+            res.append(AliasButton(lambda button: None, source, dest))
+        return res
+        return []
+
+    def set_content(self):
+        content = self.get_content()
+        self.listbox.body.clear()
+        for e in content:
+            self.listbox.body.append(e)
+
+    def handle_input(self, key):
+        if key == 'a':
+            box = AddAliasBox(self)
+            top.open_box(box)
+        elif key == 'd':
+            if self.listbox.focus is not None:
+                elem = self.listbox.focus
+                if isinstance(elem, AliasButton):
+                    box = DeleteAliasBox(self, elem.source, elem.dest)
+                    top.open_box(box)
+        else:
+            super(AliasesBox, self).handle_input(key)
+
+class DeleteAliasBox(SubEntryBox):
+    def __init__(self, parent, source, dest):
+        super(DeleteAliasBox, self).__init__('Delete alias?',
+            '\n ' + alias_str(source, dest))
+        self.parent = parent
+        self.source = source
+        self.dest = dest
+
+    def get_content(self):
+        remove_button = urwid.Button('Remove')
+        urwid.connect_signal(remove_button, 'click', self.remove)
+        cancel_button = urwid.Button('Cancel')
+        urwid.connect_signal(cancel_button, 'click', lambda button: top.remove_active())
+        return [remove_button, cancel_button]
+
+    def remove(self, button):
+        try:
+            urwidsql.remove_alias(db, self.source, self.dest)
+            set_info('Removed alias "%s"' % alias_str(self.source, self.dest))
+        except (MySQLdb.Error, urwidsql.SQLExecuteException) as e:
+            set_err_status('Unable to remove alias: ' + str(e))
+        self.parent.set_content()
+        top.remove_active()
+
+class AddAliasEditBox(urwid.Edit):
+    def __init__(self):
+        super(AddAliasEditBox, self).__init__('')
+
+class AddAliasBox(SubEntryBox):
+    def __init__(self, parent):
+        super(AddAliasBox, self).__init__('Add new alias', '')
+        self.parent = parent
+
+    def get_content(self):
+        self.source_box = AddAliasEditBox()
+        self.dest_box = AddAliasEditBox()
+        ok_button = urwid.Button('Add')
+        urwid.connect_signal(ok_button, 'click', self.ok_action)
+        cancel_button = urwid.Button('Cancel')
+        urwid.connect_signal(cancel_button, 'click', lambda button: top.remove_active())
+        return [urwid.AttrMap(urwid.Text('Source'), 'heading'),
+                urwid.AttrMap(self.source_box, 'selected'),
+                urwid.AttrMap(urwid.Text('Destination'), 'heading'),
+                urwid.AttrMap(self.dest_box, 'selected'),
+                ok_button,
+                cancel_button]
+
+    def ok_action(self, button):
+        source = self.source_box.get_edit_text()
+        if not source:
+            set_err_status('Source mail is empty, error!')
+            return
+        dest = self.dest_box.get_edit_text()
+        if not dest:
+            set_err_status('Destination mail is empty, error!')
+            return
+        try:
+            urwidsql.add_alias(db, source, dest)
+            set_info('Added alias %s' % alias_str(source, dest))
+        except (MySQLdb.Error, urwidsql.SQLExecuteException) as e:
+            set_err_status('Access error: ' + str(e))
+        self.parent.set_content()
+        top.remove_active()
 
 menu_top = SubMenu('Main Menu', [
     DomainChoice(),
@@ -465,9 +575,6 @@ def set_err_status(text):
     set_status(text)
 
 def handle_input(key):
-    f = open('test.txt','w')
-    print(top.contents[0], file=f)
-    f.close()
     assert len(top.contents) == len(top.callbacks)
     if top.contents:
         top.callbacks[top.focus_position](key)
