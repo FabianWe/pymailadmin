@@ -31,7 +31,7 @@ def get_domains(db):
     cur.close()
 
 def add_domain(db, name):
-    sql_cmd = '''INSERT INTO virtual_domains(name) VALUES(%s)'''
+    sql_cmd = '''INSERT INTO virtual_domains (name) VALUES(%s)'''
     cur = db.cursor()
     cur.execute(sql_cmd, (name, ))
     cur.close()
@@ -53,3 +53,21 @@ def get_users(db):
     for entry in cur.fetchall():
         yield entry[0]
     cur.close()
+
+def add_user(db, mail, pw_hash):
+    split = mail.split('@')
+    if len(split) != 2:
+        raise SQLExecuteException('Email does not contain exactly one @. Error.')
+    domain = split[1]
+    cur = db.cursor()
+    get_domain = 'SELECT id FROM virtual_domains WHERE name = %s'
+    cur.execute(get_domain, (domain,))
+    entries = list(cur)
+    if not entries:
+        raise SQLExecuteException('Domain "%s" was not found. Error.' % domain)
+    # everything ok, we got the id, so now add
+    domain_id = entries[0][0]
+    insert_cmd = 'INSERT INTO virtual_users (domain_id, email, password) VALUES (%s, %s, %s)'
+    cur.execute(insert_cmd, (domain_id, mail, pw_hash))
+    cur.close()
+    db.commit()

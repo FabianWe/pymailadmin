@@ -169,6 +169,9 @@ class AddDomainBox(SubEntryBox):
 
     def ok_action(self, button):
         domain = self.edit_box.get_text()[0]
+        if not domain:
+            set_err_status('Domain name is empty, error!')
+            return
         try:
             urwidsql.add_domain(db, domain)
             set_info('Added domain "%s"' % domain)
@@ -239,13 +242,93 @@ class UserBox(SubEntryBox):
 
     def handle_input(self, key):
         if key == 'a':
-            pass
+            box = AddUserBox(self)
+            top.open_box(box)
         elif key == 'd':
             pass
         elif key == 'p':
             pass
         else:
             super(UserBox, self).handle_input(key)
+
+class AddUserBox(SubEntryBox):
+    def __init__(self, parent):
+        super(AddUserBox, self).__init__('Add new user', '')
+        self.parent = parent
+
+    def get_content(self):
+        self.edit_box = AddUserEditBox()
+        self.pw_box = PasswordBox()
+        self.pw_check = PasswordBox()
+        self.pw_mask = '*'
+        pw_vis_button = urwid.Button('Show / Hide password')
+        urwid.connect_signal(pw_vis_button, 'click', self.show_hide)
+        random_pw_button = urwid.Button('Random password')
+        urwid.connect_signal(random_pw_button, 'click', self.random_pw)
+        ok_button = urwid.Button('Add')
+        urwid.connect_signal(ok_button, 'click', self.ok_action)
+        cancel_button = urwid.Button('Cancel')
+        urwid.connect_signal(cancel_button, 'click', lambda button: top.remove_active())
+        return [urwid.AttrMap(urwid.Text('Mail'), 'heading'),
+                urwid.AttrMap(self.edit_box, 'selected'),
+                urwid.AttrMap(urwid.Text('Password'), 'heading'),
+                urwid.AttrMap(self.pw_box, 'selected'),
+                urwid.AttrMap(urwid.Text('Repeat password'), 'heading'),
+                urwid.AttrMap(self.pw_check, 'selected'),
+                random_pw_button,
+                pw_vis_button,
+                ok_button,
+                cancel_button]
+
+    def ok_action(self, button):
+        mail = self.edit_box.get_text()[0]
+        if not mail:
+            set_err_status('Mail is empty, error!')
+            return
+        password = self.pw_box.get_edit_text()
+        if not password:
+            set_err_status('Password is empty, error!')
+            return
+        check_pw = self.pw_check.get_edit_text()
+        if password != check_pw:
+            set_err_status('The passwords do not match.')
+            return
+        _hash = mailadmin.gen_hash(password)
+        assert len(_hash) == 120
+        set_info(_hash)
+        try:
+            urwidsql.add_user(db, mail, _hash)
+            set_info('Added mailing user "%s"' % mail)
+            top.remove_active()
+        except (MySQLdb.Error, urwidsql.SQLExecuteException) as e:
+            set_err_status('Error while adding user: ' + str(e))
+        self.parent.set_content()
+
+    def show_hide(self, button):
+        new_mask = None
+        if self.pw_mask is None:
+            new_mask = '*'
+        self.pw_box.set_mask(new_mask)
+        self.pw_check.set_mask(new_mask)
+        self.pw_mask = new_mask
+
+    def show_pw(self):
+        self.pw_mask = None
+        self.pw_box.set_mask(None)
+        self.pw_check.set_mask(None)
+
+    def random_pw(self, button):
+        pw = mailadmin.gen_pw()
+        self.pw_box.set_edit_text(pw)
+        self.show_pw()
+
+class AddUserEditBox(urwid.Edit):
+    def __init__(self):
+        super(AddUserEditBox, self).__init__('')
+
+class PasswordBox(urwid.Edit):
+    def __init__(self):
+        super(PasswordBox, self).__init__('', mask='*')
 
 class AliasesChoice(urwid.WidgetWrap):
     def __init__(self):
