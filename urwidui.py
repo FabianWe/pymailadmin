@@ -120,6 +120,30 @@ class ExitChoice(urwid.WidgetWrap):
     def exit(self, button):
         exit_program(0)
 
+class LicenseChoice(urwid.WidgetWrap):
+    def __init__(self):
+        super(LicenseChoice, self).__init__(MenuButton('License', self.license))
+
+    def license(self, button):
+        box = LicenseBox()
+        top.open_box(box, width=75)
+
+class LicenseBox(SubEntryBox):
+    def __init__(self):
+        super(LicenseBox, self).__init__('License', '\n (q) Close')
+
+    def get_content(self):
+        res = []
+        for name in ['LICENSE', 'COPYING']:
+            f = open(name, 'r')
+            content = f.read()
+            f.close()
+            if res:
+                res.append(urwid.Divider())
+            res.append(urwid.AttrMap(urwid.Text(name), 'heading'))
+            res.append(urwid.AttrMap(urwid.Text(content), 'selected'))
+        return res
+
 class DomainChoice(urwid.WidgetWrap):
     def __init__(self):
         super(DomainChoice, self).__init__(
@@ -526,6 +550,7 @@ menu_top = SubMenu('Main Menu', [
     DomainChoice(),
     UsesrsChoice(),
     AliasesChoice(),
+    LicenseChoice(),
     ExitChoice(),
 ])
 
