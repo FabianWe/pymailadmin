@@ -320,6 +320,9 @@ class AddUserBox(SubEntryBox):
         if not mail:
             set_err_status('Mail is empty, error!')
             return
+        if not mailadmin.valid_email(mail):
+            set_err_status('%s is not a valid emai, error!' % mail)
+            return
         password = self.pw_box.get_edit_text()
         if not password:
             set_err_status('Password is empty, error!')

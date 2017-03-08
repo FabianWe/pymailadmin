@@ -25,6 +25,7 @@ import string
 import random
 import configparser
 import sys
+import re
 
 pw_chars = string.ascii_letters + string.digits
 
@@ -159,3 +160,9 @@ def add_alias(db, source, dest):
     cur.execute(cmd, (domain_id, source, dest))
     cur.close()
     db.commit()
+
+
+mail_regex = re.compile(r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)")
+
+def valid_email(mail):
+    return mail_regex.match(mail) is not None
